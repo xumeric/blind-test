@@ -37,13 +37,27 @@ a{color:inherit;text-underline-offset:.2em}
 :focus-visible{outline:2px solid #fff;outline-offset:3px}
 svg.i{width:1.15em;height:1.15em;fill:currentColor;flex:none}
 
-.wrap{position:relative;z-index:1;max-width:36rem;margin:0 auto;padding:max(.75rem,env(safe-area-inset-top)) 1rem max(3rem,env(safe-area-inset-bottom))}
-.top{display:flex;justify-content:space-between;align-items:center;gap:1rem;min-height:3rem;margin-bottom:.75rem}
-.brand{display:inline-flex;align-items:center;gap:.55rem;font-weight:800;font-size:1.1rem;letter-spacing:-.02em}
+.wrap{position:relative;z-index:1;max-width:36rem;margin:0 auto;padding:0 1rem max(3rem,env(safe-area-inset-bottom))}
+.cta-bar{position:sticky;bottom:0;z-index:4;margin:.75rem -1rem 0;padding:1.25rem 1rem max(1rem,env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 62%,rgba(18,18,18,0))}
+.sheet-backdrop{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center;padding:1rem;background:rgba(0,0,0,.65)}
+.sheet{width:min(100%,26rem);background:#282828;border-radius:12px;padding:1.4rem 1.25rem max(1.25rem,env(safe-area-inset-bottom));box-shadow:0 16px 40px rgba(0,0,0,.6)}
+.sheet h2{margin:0 0 .3rem;font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
+.sheet p{margin:0}
+.sheet .actions{flex-direction:column}
+.sheet .btn{width:100%}
+@media (min-width:600px){.sheet-backdrop{align-items:center}}
+.top{position:sticky;top:0;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:1rem;min-height:3.5rem;margin:0 -1rem .5rem;padding:max(.5rem,env(safe-area-inset-top)) 1rem .5rem;transition:background-color .2s}
+.top.scrolled{background:rgba(18,18,18,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.top-left{display:flex;align-items:center;gap:.6rem;min-width:0}
+.nav-back{display:grid;place-items:center;width:2.25rem;height:2.25rem;flex:none;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;transition:background-color .15s,transform .1s}
+.nav-back:hover{background:rgba(0,0,0,.8);transform:scale(1.05)}
+.nav-back svg{width:1.25rem;height:1.25rem;fill:currentColor}
+.brand{display:inline-flex;align-items:center;gap:.55rem;font:800 1.1rem/1 var(--font);letter-spacing:-.02em;color:#fff;background:none;border:0;padding:.25rem 0;cursor:pointer;white-space:nowrap}
 .brand-tile{display:grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:6px;background:var(--green);color:#000;font-weight:900;font-size:1.15rem;line-height:1}
 .acct{display:flex;align-items:center;gap:.6rem;min-width:0;color:var(--sub);font-size:.875rem}
 .avatar{display:grid;place-items:center;width:2rem;height:2rem;border-radius:50%;background:#8D67AB;color:#fff;font-weight:800;font-size:.95rem;flex:none}
 .acct #who{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-weight:700;max-width:9rem}
+@media (max-width:420px){.acct #who{display:none}}
 
 .hero{font-weight:900;font-size:clamp(3rem,15vw,4.75rem);line-height:.95;letter-spacing:-.045em;margin:1.5rem 0 1rem}
 .hero span{display:block}
@@ -226,7 +240,10 @@ select:disabled{opacity:.5}
 <div class="tint" aria-hidden="true"></div>
 <div class="wrap">
   <header class="top">
-    <span class="brand" id="brand"><span class="brand-tile" aria-hidden="true">?</span>Blind test</span>
+    <div class="top-left">
+      <button class="nav-back" id="btn-nav-back" type="button" aria-label="Retour" title="Retour" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5 8 12l7.5 7.5-1.5 1.5-9-9 9-9z"/></svg></button>
+      <button class="brand" id="brand" type="button" title="Retour au choix de la musique"><span class="brand-tile" aria-hidden="true">?</span>Blind test</button>
+    </div>
     <div class="acct" id="acct" hidden><span class="avatar" id="avatar" aria-hidden="true"></span><span id="who"></span><button class="btn-text" id="btn-logout" type="button">Déconnexion</button></div>
   </header>
 
@@ -299,9 +316,9 @@ select:disabled{opacity:.5}
           <legend>Quels sons ?</legend>
           <div class="seg" id="artist-depth"></div>
         </fieldset>
-        <button class="btn btn-primary btn-wide go" id="btn-artists-go" type="button" hidden>Continuer</button>
         <p id="artist-status" class="muted small pane-status" role="status"></p>
         <ul id="artist-list" class="rows"></ul>
+        <div class="cta-bar" id="artist-cta" hidden><button class="btn btn-primary btn-wide" id="btn-artists-go" type="button">Continuer</button></div>
       </div>
 
       <div id="pane-styles" role="tabpanel" aria-labelledby="tab-styles" hidden>
@@ -318,13 +335,12 @@ select:disabled{opacity:.5}
           <legend>Années</legend>
           <div class="seg" id="era-chips"></div>
         </fieldset>
-        <button class="btn btn-primary btn-wide" id="btn-style-go" type="button" disabled>Continuer</button>
+        <div class="cta-bar"><button class="btn btn-primary btn-wide" id="btn-style-go" type="button" disabled>Continuer</button></div>
       </div>
     </section>
 
     <!-- Réglages -->
     <section id="s-settings" hidden>
-      <p class="back"><button class="btn-text" id="btn-back-lib" type="button">Changer de musique</button></p>
       <h1 class="h1" id="set-title"></h1>
       <p id="track-status" class="muted" role="status"></p>
       <p id="guess-note" class="small" hidden></p>
@@ -341,7 +357,7 @@ select:disabled{opacity:.5}
         </div>
         <p id="dev-note" class="muted small"></p>
       </fieldset>
-      <button class="btn btn-primary btn-wide" id="btn-start" type="button" disabled>Lancer la partie</button>
+      <div class="cta-bar"><button class="btn btn-primary btn-wide" id="btn-start" type="button" disabled>Lancer la partie</button></div>
     </section>
 
     <!-- Partie -->
@@ -438,6 +454,16 @@ select:disabled{opacity:.5}
     </section>
   </main>
 </div>
+<div class="sheet-backdrop" id="quit-sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title" aria-describedby="quit-desc">
+    <h2 id="quit-title">Quitter la partie ?</h2>
+    <p class="muted" id="quit-desc">Le score de cette partie ne sera pas gardé.</p>
+    <div class="actions">
+      <button class="btn btn-white" id="quit-yes" type="button">Quitter</button>
+      <button class="btn btn-ghost" id="quit-no" type="button">Continuer la partie</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
@@ -476,14 +502,83 @@ function toast(msg, err = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, err ? 8000 : 3500);
 }
 
+/* ---------- navigation ---------- */
+// Chaque écran a sa place dans l'historique du navigateur : le bouton retour
+// (ou le geste retour sur iPhone) remonte d'un écran au lieu de quitter l'app.
+const DEPTH = { library: 0, settings: 1, play: 2, end: 2 };
+const HASH = { library: '#musique', settings: '#reglages', play: '#partie', end: '#fin' };
+const PARENT = { settings: 'library', play: 'settings', end: 'settings' };
+let screen = null;
+const scrollMemo = {};
 function show(name) {
+  if (screen) scrollMemo[screen] = window.scrollY;
+  screen = name;
   for (const s of $$('main > section')) s.hidden = s.id !== 's-' + name;
   const intro = name === 'setup' || name === 'login';
   $('#brand').hidden = intro;
   $('#acct').hidden = intro || !S.me;
+  $('#btn-nav-back').hidden = !(name in DEPTH) || DEPTH[name] === 0;
   if (intro) setTint('#1E3264');
   else if (name === 'library' || name === 'settings') setTint('#404040');
-  window.scrollTo(0, 0);
+  window.scrollTo(0, name === 'library' ? (scrollMemo.library || 0) : 0);
+}
+function setEntry(name, push) {
+  const url = redirectUri() + (HASH[name] || '');
+  const st = { bt: 1, screen: name };
+  try { push ? history.pushState(st, '', url) : history.replaceState(st, '', url); } catch {}
+}
+function nav(name) {
+  const from = screen;
+  if (!(name in DEPTH)) { show(name); setEntry(name, false); return; }
+  if (from in DEPTH && history.state && history.state.bt) {
+    const d = DEPTH[name] - DEPTH[from];
+    if (d > 0) { show(name); setEntry(name, true); return; }
+    if (d < 0) { history.go(d); return; }            // l'écran s'affiche dans popstate
+  }
+  show(name); setEntry(name, false);
+}
+const gameRunning = () => !!(S.game && !S.game.over);
+function goBack() {
+  if (screen === 'play' && gameRunning()) { openQuit('settings'); return; }
+  if (PARENT[screen]) nav(PARENT[screen]);
+}
+function goHome() {
+  if (screen === 'play' && gameRunning()) { openQuit('library'); return; }
+  if (screen in DEPTH) nav('library');
+}
+window.addEventListener('popstate', e => {
+  const st = e.state;
+  if (!st || !st.bt) { if (S.me && screen in DEPTH) setEntry(screen, true); return; }
+  if (screen === 'play' && gameRunning() && st.screen !== 'play') {
+    setEntry('play', true); openQuit(DEPTH[st.screen] === 0 ? 'library' : 'settings'); return;
+  }
+  let t = st.screen;
+  if ((t === 'play' || t === 'end') && !S.game) t = S.source ? 'settings' : 'library';
+  if (t === 'settings' && !S.source) t = 'library';
+  if (t !== st.screen) setEntry(t, false);
+  closeQuit(false);
+  show(t);
+});
+
+let quitTarget = 'settings', quitReturnFocus = null;
+function openQuit(target) {
+  quitTarget = target;
+  const sh = $('#quit-sheet');
+  if (!sh.hidden) return;
+  quitReturnFocus = document.activeElement;
+  sh.hidden = false; $('#quit-no').focus();
+}
+function closeQuit(restore = true) {
+  const sh = $('#quit-sheet');
+  if (sh.hidden) return;
+  sh.hidden = true;
+  if (restore && quitReturnFocus && quitReturnFocus.focus) quitReturnFocus.focus();
+}
+function confirmQuit() {
+  closeQuit(false);
+  if (S.game) { stopClip(); pausePlayback(S.game.dev); }
+  S.game = null;
+  nav(quitTarget);
 }
 
 /* ---------- environnement & redirection ---------- */
@@ -599,7 +694,7 @@ function explain(e) {
 }
 function handleErr(e) {
   console.error(e);
-  if (e && e.auth) { S.me = null; show('login'); }
+  if (e && e.auth) { S.me = null; S.game = null; nav('login'); }
   toast(explain(e), true);
 }
 function pickImg(images, size) {
@@ -620,7 +715,7 @@ function renderSetup(problem) {
 
 /* ---------- playlists ---------- */
 async function loadHome() {
-  show('library');
+  nav('library');
   $('#lib-list').replaceChildren(); $('#lib-locked').hidden = true;
   $('#lib-status').textContent = 'Chargement de tes playlists…';
   S.me = await api('/me');
@@ -897,7 +992,7 @@ function renderArtistResults() {
     return b;
   }));
   const n = S.pickedArtists.length, go = $('#btn-artists-go');
-  go.hidden = !n;
+  $('#artist-cta').hidden = !n;
   go.textContent = n > 1 ? `Continuer avec ${n} artistes` : 'Continuer';
   $('#artist-depth-box').hidden = !n;
   $('#artist-depth').replaceChildren(...[['top', 'Les plus connus'], ['all', 'Toute la discographie']].map(([val, label]) => {
@@ -963,7 +1058,7 @@ function renderSegs() {
 }
 async function pickSource(src) {
   S.source = src; S.tracks = [];
-  show('settings');
+  nav('settings');
   $('#set-title').textContent = src.name;
   const note = $('#guess-note');
   note.hidden = src.fields.includes('artist');
@@ -1212,7 +1307,7 @@ function startGame() {
     tintOffset: Math.floor(Math.random() * TINTS.length),
     rounds: pool.slice(0, n).map(t => ({ t, start: pickStart(t, clipMs), heard: 0, gT: '', gA: '', okT: false, okA: false, hint: false, done: false }))
   };
-  show('play');
+  nav('play');
   beginRound();
 }
 function score() { return S.game.rounds.reduce((s, r) => s + (r.done ? ((r.okT ? 1 : 0) + (r.okA ? 1 : 0)) * (r.hint ? 0.5 : 1) : 0), 0); }
@@ -1325,7 +1420,6 @@ function beginRound() {
   $('#g-title').value = ''; $('#g-artist').value = '';
   $('#hint').hidden = true; $('#btn-hint').disabled = false;
   closeSuggest();
-  resetQuit();
   playClip();
   if (g.mode === 'type' && !matchMedia('(pointer: coarse)').matches) $('#g-title').focus({ preventScroll: true });
 }
@@ -1394,20 +1488,11 @@ function nextRound() {
   if (g.i + 1 >= g.rounds.length) return endGame();
   g.i++; beginRound();
 }
-let quitArmed = 0;
-function resetQuit() { clearTimeout(quitArmed); quitArmed = 0; $('#btn-quit').textContent = 'Quitter la partie'; }
-function quit() {
-  if (!quitArmed) {
-    $('#btn-quit').textContent = 'Touche encore pour quitter';
-    quitArmed = setTimeout(resetQuit, 3000); return;
-  }
-  resetQuit(); stopClip(); pausePlayback(S.game.dev); S.game = null;
-  show('settings');
-}
 function endGame() {
   const g = S.game, total = score(), max = g.rounds.length * (g.artist ? 2 : 1), ratio = max ? total / max : 0;
   stopClip();
-  show('end');
+  g.over = true;
+  nav('end');
   $('#end-score').textContent = fmt(total);
   const verdict = ratio >= 0.85 ? 'Oreille absolue.' : ratio >= 0.6 ? 'Très belle partie.' : ratio >= 0.35 ? 'Pas mal du tout.' : 'La playlist a gagné cette fois.';
   $('#end-sub').textContent = `point${total >= 2 ? 's' : ''} sur ${max}, en ${g.rounds.length} manche${g.rounds.length > 1 ? 's' : ''}. ${verdict}`;
@@ -1442,14 +1527,23 @@ function bind() {
     route();
   });
   $('#btn-login').addEventListener('click', () => login().catch(handleErr));
-  $('#btn-edit-client').addEventListener('click', () => { renderSetup(envProblem()); show('setup'); });
+  $('#btn-edit-client').addEventListener('click', () => { renderSetup(envProblem()); nav('setup'); });
   $('#btn-logout').addEventListener('click', () => {
     store.del(K.token); S.me = null; S.cache.clear();
     if (S.sdk.player) { try { S.sdk.player.disconnect(); } catch {} }
     S.sdk = { player: null, id: null, status: 'off', error: '' };
-    show('login');
+    if (S.game) { stopClip(); pausePlayback(S.game.dev); }
+    S.game = null; S.source = null;
+    nav('login');
   });
-  $('#btn-back-lib').addEventListener('click', () => { S.source = null; show('library'); });
+  $('#btn-nav-back').addEventListener('click', goBack);
+  $('#brand').addEventListener('click', goHome);
+  $('#quit-yes').addEventListener('click', confirmQuit);
+  $('#quit-no').addEventListener('click', () => closeQuit());
+  $('#quit-sheet').addEventListener('click', e => { if (e.target === e.currentTarget) closeQuit(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#quit-sheet').hidden) { e.preventDefault(); closeQuit(); } });
+  const onScroll = () => $('.top').classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
   $('#btn-devices').addEventListener('click', refreshDevices);
   $('#device').addEventListener('change', () => { store.set(K.device, $('#device').value); updateDeviceNote(); updateStart(); });
   $('#btn-start').addEventListener('click', startGame);
@@ -1496,17 +1590,17 @@ function bind() {
   $('#chip-a').addEventListener('click', () => { cur().okA = !cur().okA; renderChips(); });
   $('#btn-listen').addEventListener('click', toggleListen);
   $('#btn-next').addEventListener('click', nextRound);
-  $('#btn-quit').addEventListener('click', quit);
+  $('#btn-quit').addEventListener('click', () => openQuit('settings'));
 
-  $('#btn-again').addEventListener('click', () => { show('settings'); startGame(); });
-  $('#btn-change').addEventListener('click', () => show('library'));
+  $('#btn-again').addEventListener('click', startGame);
+  $('#btn-change').addEventListener('click', () => nav('library'));
   $('#toast').addEventListener('click', () => { $('#toast').hidden = true; });
 }
 
 async function route() {
   const problem = envProblem();
-  if (!store.get(K.client) || problem) { renderSetup(problem); show('setup'); return; }
-  if (!store.get(K.token)) { show('login'); return; }
+  if (!store.get(K.client) || problem) { renderSetup(problem); nav('setup'); return; }
+  if (!store.get(K.token)) { nav('login'); return; }
   try { await loadHome(); } catch (e) { handleErr(e); }
 }
 
