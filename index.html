@@ -155,6 +155,17 @@ select:disabled{opacity:.6}
 .hint-k{display:inline-block;min-width:4.6rem;color:var(--soft)}
 .mask{font-family:var(--display);font-stretch:115%;font-weight:700;letter-spacing:.14em;color:var(--sun);overflow-wrap:anywhere}
 .guess label{display:block;font-weight:700;margin:.9rem 0 .35rem}
+.ac{position:relative}
+.sugg{list-style:none;margin:.4rem 0 0;padding:.3rem;background:var(--paper);color:var(--ink);border-radius:14px;box-shadow:0 14px 30px -6px rgba(8,6,58,.5)}
+.sugg li{display:flex;align-items:center;min-height:44px;padding:.5rem .8rem;border-radius:10px;cursor:pointer;font-weight:700;overflow-wrap:anywhere}
+.sugg li + li{border-top:1px solid #E3DFFB}
+.sugg li:hover,.sugg li[aria-selected="true"]{background:#E3DFFB}
+.disc{transition:width .3s ease}
+@media (pointer:coarse){
+  #s-play:has(#form-type:focus-within) .stage{margin:.5rem 0 .75rem}
+  #s-play:has(#form-type:focus-within) .disc{width:min(36vw,150px)}
+}
+.record{color:var(--sun);font-weight:700;margin:-.75rem 0 1.25rem}
 
 .reveal{text-align:center}
 .rv-title{font-family:var(--display);font-weight:800;font-size:clamp(1.7rem,7.5vw,2.4rem);line-height:1.05;margin:0 0 .35rem;text-wrap:balance;overflow-wrap:anywhere}
@@ -291,6 +302,7 @@ select:disabled{opacity:.6}
       <fieldset><legend>Durée de l'extrait</legend><div class="seg" data-key="clip"></div></fieldset>
       <fieldset><legend>L'extrait commence</legend><div class="seg" data-key="start"></div></fieldset>
       <fieldset><legend>Réponses</legend><div class="seg" data-key="mode"></div></fieldset>
+      <fieldset><legend>Suggestions pendant que tu tapes</legend><div class="seg" data-key="sugg"></div></fieldset>
       <fieldset>
         <legend>Lecture sur</legend>
         <div class="devrow">
@@ -321,7 +333,8 @@ select:disabled{opacity:.6}
 
       <div id="guess-panel">
         <div class="tools">
-          <button class="btn btn-ghost btn-small" id="btn-replay" type="button">Réécouter l'extrait</button>
+          <button class="btn btn-ghost btn-small" id="btn-replay" type="button">Réécouter</button>
+          <button class="btn btn-ghost btn-small" id="btn-more" type="button">Encore 5 s</button>
           <button class="btn btn-ghost btn-small" id="btn-hint" type="button">Indice</button>
         </div>
         <div class="hint" id="hint" hidden>
@@ -331,10 +344,16 @@ select:disabled{opacity:.6}
         </div>
         <form id="form-type" class="guess" autocomplete="off">
           <label for="g-title">Titre</label>
-          <input type="text" id="g-title" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+          <div class="ac">
+            <input type="text" id="g-title" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg-title" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+            <ul class="sugg" id="sugg-title" role="listbox" aria-label="Suggestions de titres" hidden></ul>
+          </div>
           <div id="artist-field">
             <label for="g-artist">Artiste</label>
-            <input type="text" id="g-artist" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+            <div class="ac">
+              <input type="text" id="g-artist" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg-artist" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+              <ul class="sugg" id="sugg-artist" role="listbox" aria-label="Suggestions d'artistes" hidden></ul>
+            </div>
           </div>
           <div class="actions">
             <button class="btn btn-primary" type="submit">Valider</button>
@@ -370,6 +389,7 @@ select:disabled{opacity:.6}
       <p class="muted">Partie terminée</p>
       <p class="bigscore" id="end-score"></p>
       <p class="lede" id="end-sub"></p>
+      <p class="record" id="end-record" hidden></p>
       <div class="actions">
         <button class="btn btn-primary" id="btn-again" type="button">Rejouer</button>
         <button class="btn btn-ghost" id="btn-change" type="button">Changer de musique</button>
@@ -405,7 +425,8 @@ const S = {
   me: null, playlists: [], likedTotal: null, source: null, tracks: [], cache: new Map(), devices: [],
   sdk: { player: null, id: null, status: 'off', error: '' },
   game: null, tab: 'playlists', pickedArtists: [], styleSel: new Set(), customStyles: [], era: '',
-  settings: Object.assign({ rounds: 10, clip: 15, start: 'random', mode: 'type' }, store.get(K.settings, {}))
+  settings: Object.assign({ rounds: 10, clip: 15, start: 'random', mode: 'type', sugg: true }, store.get(K.settings, {})),
+  index: { title: [], artist: [] }
 };
 
 let toastTimer = 0;
@@ -830,9 +851,10 @@ function stylesGo() {
 /* ---------- réglages ---------- */
 const SEGS = {
   rounds: [[10, '10'], [20, '20'], [30, '30'], [0, 'Toutes']],
-  clip: [[5, '5 s'], [10, '10 s'], [15, '15 s'], [30, '30 s']],
+  clip: [[5, '5 s'], [10, '10 s'], [15, '15 s'], [30, '30 s'], [60, '1 min']],
   start: [['random', 'Au hasard dans le titre'], ['begin', 'Au début']],
-  mode: [['type', 'Je tape mes réponses'], ['voice', 'À voix haute']]
+  mode: [['type', 'Je tape mes réponses'], ['voice', 'À voix haute']],
+  sugg: [[true, 'Oui'], [false, 'Non, mode difficile']]
 };
 function renderSegs() {
   for (const box of $$('.seg[data-key]')) {
@@ -951,13 +973,14 @@ async function resumePlayback(dev) {
 
 /* ---------- comparaison des réponses ---------- */
 const STOP = new Set(['the', 'le', 'la', 'les', 'l', 'a', 'and', 'et']);
-function norm(s) {
+function norm(s, keepStop = false) {
   if (!s) return '';
   const x = s.toLowerCase().normalize('NFKD').replace(/\p{M}+/gu, '')
     .replace(/œ/g, 'oe').replace(/æ/g, 'ae').replace(/ß/g, 'ss')
     .replace(/&/g, ' and ').replace(/\$/g, 's')
     .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const toks = x.split(' ').filter(Boolean);
+  if (keepStop) return toks.join(' ');
   const kept = toks.filter(t => !STOP.has(t));
   return (kept.length ? kept : toks).join(' ');
 }
@@ -1006,6 +1029,73 @@ function mask(s) {
     .map(w => [...w].map((c, i) => (i === 0 || !/[\p{L}\p{N}]/u.test(c)) ? c : '_').join('')).join('   ');
 }
 
+/* ---------- suggestions ---------- */
+function buildIndex(tracks) {
+  const titles = new Map(), artists = new Map();
+  for (const t of tracks) {
+    const label = stripExtras(t.name), k = norm(label, true);
+    if (k && !titles.has(k)) titles.set(k, label);
+    for (const a of t.artists) { const ka = norm(a, true); if (ka && !artists.has(ka)) artists.set(ka, a); }
+  }
+  const pack = m => [...m].map(([k, label]) => ({ k, label, words: k.split(' ') }));
+  S.index = { title: pack(titles), artist: pack(artists) };
+}
+function rank(q, items) {
+  const qw = q.split(' '), qc = q.replace(/ /g, ''), out = [];
+  for (const it of items) {
+    let s = -1;
+    if (it.k.startsWith(q)) s = 0;
+    else if ((' ' + it.k).includes(' ' + q)) s = 1;
+    else if (it.k.includes(q) || it.k.replace(/ /g, '').includes(qc) || qw.every(w => it.words.some(x => x.startsWith(w)))) s = 2;
+    else if ([...q].length >= 4 && lev(it.k.slice(0, q.length), q) <= 1) s = 3;
+    if (s >= 0) out.push([s, it.k.length, it]);
+  }
+  out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return out.slice(0, 5).map(x => x[2]);
+}
+const closers = {};
+function setupSuggest(input, list, kind) {
+  let items = [], active = -1;
+  const close = () => {
+    items = []; active = -1; list.hidden = true; list.replaceChildren();
+    input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
+  };
+  const pick = i => {
+    input.value = items[i].label; close();
+    if (kind === 'title' && S.game && S.game.artist) $('#g-artist').focus();
+  };
+  const render = () => {
+    list.replaceChildren(...items.map((it, i) => {
+      const li = document.createElement('li');
+      li.id = `${list.id}-${i}`; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', String(i === active));
+      li.textContent = it.label;
+      li.addEventListener('mousedown', e => e.preventDefault());
+      li.addEventListener('click', () => pick(i));
+      return li;
+    }));
+    list.hidden = !items.length;
+    input.setAttribute('aria-expanded', String(!!items.length));
+    if (active >= 0) input.setAttribute('aria-activedescendant', `${list.id}-${active}`); else input.removeAttribute('aria-activedescendant');
+  };
+  input.addEventListener('input', () => {
+    const g = S.game, q = norm(input.value, true);
+    if (!g || !g.sugg || [...q].length < 2) { close(); return; }
+    items = rank(q, S.index[kind]);
+    if (items.length === 1 && items[0].k === q) items = [];
+    active = -1; render();
+  });
+  input.addEventListener('keydown', e => {
+    if (list.hidden || !items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % items.length; render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + items.length) % items.length; render(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(active); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 200));
+  closers[kind] = close;
+}
+const closeSuggest = () => { for (const c of Object.values(closers)) c(); };
+
 /* ---------- partie ---------- */
 const cur = () => S.game.rounds[S.game.i];
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -1022,10 +1112,11 @@ function startGame() {
   const clipMs = S.settings.clip * 1000;
   const pool = shuffle(S.tracks.slice());
   const n = S.settings.rounds ? Math.min(S.settings.rounds, pool.length) : pool.length;
+  buildIndex(S.tracks);
   S.game = {
     dev, mode: S.settings.mode, clip: S.settings.clip, i: 0, listen: 'off',
-    artist: S.source.fields.includes('artist'),
-    rounds: pool.slice(0, n).map(t => ({ t, start: pickStart(t, clipMs), gT: '', gA: '', okT: false, okA: false, hint: false, done: false }))
+    artist: S.source.fields.includes('artist'), sugg: S.settings.sugg !== false, key: S.source.key,
+    rounds: pool.slice(0, n).map(t => ({ t, start: pickStart(t, clipMs), heard: 0, gT: '', gA: '', okT: false, okA: false, hint: false, done: false }))
   };
   show('play');
   beginRound();
@@ -1042,25 +1133,43 @@ function runRing(ms) {
 }
 function stopRing() { if (ringAnim) { ringAnim.cancel(); ringAnim = null; } $('#ring-bar').style.opacity = 0; }
 
-let clipTimer = 0, clipSeq = 0;
-async function playClip() {
+let clipTimer = 0, clipSeq = 0, seg = null;
+async function playSegment(from, dur) {
   const g = S.game; if (!g) return;
   const r = cur(), seq = ++clipSeq;
-  clearTimeout(clipTimer); stopRing();
+  clearTimeout(clipTimer); stopRing(); seg = null;
   setDisc('loading');
-  try { await playUri(g.dev, r.t.uri, r.start); }
+  try { await playUri(g.dev, r.t.uri, from); }
   catch (e) { if (seq === clipSeq) { setDisc('hidden'); handleErr(e); } return; }
   if (seq !== clipSeq) return;
   await sleep(300);
   if (seq !== clipSeq) return;
+  seg = { seq, from, dur, since: Date.now() };
   setDisc('hidden', true);
-  runRing(g.clip * 1000);
-  clipTimer = setTimeout(() => {
-    if (seq !== clipSeq) return;
-    pausePlayback(g.dev); setDisc('hidden'); stopRing();
-  }, g.clip * 1000);
+  runRing(dur);
+  clipTimer = setTimeout(endSegment, dur);
 }
-function stopClip() { clipSeq++; clearTimeout(clipTimer); stopRing(); }
+function endSegment() {
+  if (!seg || seg.seq !== clipSeq || !S.game) return;
+  const r = cur();
+  r.heard = Math.max(r.heard, seg.from - r.start + seg.dur);
+  seg = null;
+  pausePlayback(S.game.dev); setDisc('hidden'); stopRing();
+}
+function playClip() { const g = S.game; if (g) playSegment(cur().start, g.clip * 1000); }
+function moreSeconds() {
+  const g = S.game; if (!g || cur().done) return;
+  if (seg && seg.seq === clipSeq) {
+    seg.dur += 5000;
+    const left = seg.since + seg.dur - Date.now();
+    clearTimeout(clipTimer); clipTimer = setTimeout(endSegment, left); runRing(left);
+    return;
+  }
+  const r = cur(), from = r.start + Math.max(r.heard, g.clip * 1000);
+  if (r.t.dur && from > r.t.dur - 2000) { toast("C'est déjà la fin du son."); return; }
+  playSegment(from, 5000);
+}
+function stopClip() { clipSeq++; clearTimeout(clipTimer); stopRing(); seg = null; }
 
 function beginRound() {
   const g = S.game;
@@ -1076,6 +1185,7 @@ function beginRound() {
   $('#g-title').setAttribute('enterkeyhint', g.artist ? 'next' : 'done');
   $('#g-title').value = ''; $('#g-artist').value = '';
   $('#hint').hidden = true; $('#btn-hint').disabled = false;
+  closeSuggest();
   resetQuit();
   playClip();
   if (g.mode === 'type' && !matchMedia('(pointer: coarse)').matches) $('#g-title').focus({ preventScroll: true });
@@ -1093,6 +1203,7 @@ function reveal(evaluate) {
   r.okT = evaluate ? matchTitle(r.gT, r.t.name) : false;
   r.okA = evaluate && g.artist ? matchArtist(r.gA, r.t.artists) : false;
   r.done = true;
+  closeSuggest();
   stopClip(); pausePlayback(g.dev);
   const img = $('#cover');
   if (r.t.img) img.src = r.t.img; else img.removeAttribute('src');
@@ -1157,6 +1268,13 @@ function endGame() {
   $('#end-score').textContent = fmt(total);
   const verdict = ratio >= 0.85 ? 'Oreille absolue.' : ratio >= 0.6 ? 'Très belle partie.' : ratio >= 0.35 ? 'Pas mal du tout.' : 'La playlist a gagné cette fois.';
   $('#end-sub').textContent = `point${total >= 2 ? 's' : ''} sur ${max}, en ${g.rounds.length} manche${g.rounds.length > 1 ? 's' : ''}. ${verdict}`;
+  const bests = store.get('bt.best', {}) || {}, prev = bests[g.key], rec = $('#end-record');
+  if (!prev || ratio > prev.ratio) {
+    bests[g.key] = { ratio, total, max }; store.set('bt.best', bests);
+    rec.textContent = prev ? 'Nouveau record sur cette sélection !' : ''; rec.hidden = !prev;
+  } else {
+    rec.textContent = `Ton record ici : ${fmt(prev.total)} sur ${prev.max}.`; rec.hidden = false;
+  }
   $('#end-list').replaceChildren(...g.rounds.map(r => {
     const res = !g.artist ? (r.okT ? { text: 'Trouvé', cls: 'good' } : { text: 'Raté', cls: 'bad' })
       : r.okT && r.okA ? { text: 'Titre et artiste', cls: 'good' } : r.okT ? { text: 'Titre', cls: 'good' } : r.okA ? { text: 'Artiste', cls: 'good' } : { text: 'Raté', cls: 'bad' };
@@ -1193,7 +1311,10 @@ function bind() {
   $('#device').addEventListener('change', () => { store.set(K.device, $('#device').value); updateDeviceNote(); updateStart(); });
   $('#btn-start').addEventListener('click', startGame);
 
+  setupSuggest($('#g-title'), $('#sugg-title'), 'title');
+  setupSuggest($('#g-artist'), $('#sugg-artist'), 'artist');
   $('#btn-replay').addEventListener('click', playClip);
+  $('#btn-more').addEventListener('click', moreSeconds);
   $('#btn-hint').addEventListener('click', showHint);
   $('#g-title').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
