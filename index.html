@@ -101,6 +101,7 @@ details{margin-top:1rem}
 .pick{display:inline-flex;align-items:center;gap:.4rem;border:0;border-radius:999px;background:var(--paper);color:var(--ink);font:700 .95rem/1 var(--body);padding:.5rem .55rem .5rem .9rem;min-height:40px;cursor:pointer}
 .pick span{display:grid;place-items:center;width:1.4rem;height:1.4rem;border-radius:50%;background:var(--ink);color:var(--paper);font-size:.8rem}
 .go{margin:1rem 0 .5rem}
+.depth{margin:1rem 0 0}
 .seg + .inline{margin-top:.75rem}
 #guess-note{margin:-.1rem 0 1.25rem}
 summary{cursor:pointer;font-weight:700;color:var(--soft);padding:.6rem 0}
@@ -266,9 +267,13 @@ select:disabled{opacity:.6}
       </div>
 
       <div id="pane-artists" role="tabpanel" aria-labelledby="tab-artists" hidden>
-        <p class="muted pane-intro">Les sons les plus connus d'un ou plusieurs artistes. Avec un seul artiste, tu devines le titre. Avec plusieurs, le titre et l'artiste.</p>
+        <p class="muted pane-intro">Les sons d'un ou plusieurs artistes. Avec un seul artiste, tu devines le titre. Avec plusieurs, le titre et l'artiste.</p>
         <input type="search" id="q-artist" placeholder="Nom de l'artiste" aria-label="Chercher un artiste" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
         <div class="picked" id="artist-picked" aria-live="polite"></div>
+        <fieldset class="depth" id="artist-depth-box" hidden>
+          <legend>Quels sons ?</legend>
+          <div class="seg" id="artist-depth"></div>
+        </fieldset>
         <button class="btn btn-primary btn-wide go" id="btn-artists-go" type="button" hidden>Continuer</button>
         <p id="artist-status" class="muted small pane-status" role="status"></p>
         <ul id="artist-list" class="rows"></ul>
@@ -424,7 +429,7 @@ const CIRC = 301.6;
 const S = {
   me: null, playlists: [], likedTotal: null, source: null, tracks: [], cache: new Map(), devices: [],
   sdk: { player: null, id: null, status: 'off', error: '' },
-  game: null, tab: 'playlists', pickedArtists: [], styleSel: new Set(), customStyles: [], era: '',
+  game: null, tab: 'playlists', pickedArtists: [], artistDepth: 'top', styleSel: new Set(), customStyles: [], era: '',
   settings: Object.assign({ rounds: 10, clip: 15, start: 'random', mode: 'type', sugg: true }, store.get(K.settings, {})),
   index: { title: [], artist: [] }
 };
@@ -654,8 +659,23 @@ const BOTH = ['title', 'artist'], TITLE_ONLY = ['title'];
 function addTrack(out, seen, t) {
   if (!t || (t.type && t.type !== 'track') || t.is_local || t.is_playable === false || !t.uri || !t.id) return;
   const k = norm(stripExtras(t.name || '')) + '|' + norm(((t.artists || [])[0] || {}).name || '');
-  if (seen.has(t.id) || seen.has(k)) return;
+  if (seen.has(t.id) || seen.has(k)) return false;
   seen.add(t.id); seen.add(k); out.push(slim(t));
+  return true;
+}
+async function getAll(url, maxPages = 20) {
+  const items = [];
+  for (let p = 0; url && p < maxPages; p++) {
+    let d;
+    try { d = await api(url); }
+    catch (e) {
+      if (e.status === 400 && /limit=50/.test(url)) { url = url.replace('limit=50', 'limit=10'); p--; continue; }
+      throw e;
+    }
+    items.push(...((d && d.items) || []).filter(Boolean));
+    url = d && d.next;
+  }
+  return items;
 }
 async function loadTracks(src) {
   if (S.cache.has(src.key)) return S.cache.get(src.key);
@@ -693,28 +713,56 @@ async function loadAlbumTracks(src) {
   }
   return out;
 }
-async function searchTracks(q, pages, keep, out, seen) {
-  for (let p = 0; p < pages; p++) {
-    const d = await api(`/search?type=track&limit=10&offset=${p * 10}&market=from_token&q=${encodeURIComponent(q)}`);
-    const items = ((d && d.tracks && d.tracks.items) || []).filter(Boolean);
-    for (const t of items) if (!keep || keep(t)) addTrack(out, seen, t);
+// Spotify renvoie parfois moins de résultats que demandé (5 au lieu de 10) :
+// on avance du nombre réellement reçu et on s'arrête seulement quand il n'y a plus de page.
+async function searchTracks(q, want, keep, out, seen) {
+  let offset = 0, added = 0, dry = 0;
+  for (let p = 0; p < 25 && added < want && offset < 1000; p++) {
+    const d = await api(`/search?type=track&limit=10&offset=${offset}&market=from_token&q=${encodeURIComponent(q)}`);
+    const tr = d && d.tracks, items = ((tr && tr.items) || []).filter(Boolean);
+    let gained = 0;
+    for (const t of items) if ((!keep || keep(t)) && addTrack(out, seen, t)) gained++;
+    added += gained;
     setTrackStatus(`Chargement des titres… ${out.length}`);
-    if (items.length < 10 || !d.tracks.next) break;
+    dry = gained ? 0 : dry + 1;
+    if (!items.length || !tr.next || dry >= 3) break;
+    offset += items.length;
   }
 }
 async function loadArtistTracks(src) {
   const out = [], seen = new Set();
-  const pages = src.artists.length === 1 ? 6 : Math.max(2, Math.ceil(10 / src.artists.length));
-  await Promise.all(src.artists.map(a =>
-    searchTracks(`artist:"${a.name}"`, pages, t => (t.artists || []).some(x => x.id === a.id), out, seen)));
+  const n = src.artists.length;
+  if (src.depth === 'all') {
+    for (const a of src.artists) await loadDiscography(a, out, seen, n === 1 ? 300 : Math.max(40, Math.ceil(300 / n)));
+  } else {
+    const want = n === 1 ? 60 : Math.max(15, Math.ceil(80 / n));
+    await Promise.all(src.artists.map(a =>
+      searchTracks(`artist:"${a.name}"`, want, t => (t.artists || []).some(x => x.id === a.id), out, seen)));
+  }
   return out;
+}
+async function loadDiscography(a, out, seen, cap) {
+  const albums = (await getAll(`/artists/${encodeURIComponent(a.id)}/albums?include_groups=album,single&limit=10&market=from_token`, 10))
+    .filter((al, i, arr) => al.id && arr.findIndex(x => x.id === al.id) === i)
+    .slice(0, 40);
+  let next = 0;
+  const worker = async () => {
+    while (next < albums.length && out.length < cap) {
+      const al = albums[next++];
+      const info = { name: al.name, release_date: al.release_date, images: al.images };
+      const tracks = await getAll(`/albums/${encodeURIComponent(al.id)}/tracks?limit=50&market=from_token`, 5);
+      for (const t of tracks) if ((t.artists || []).some(x => x.id === a.id)) addTrack(out, seen, Object.assign({}, t, { album: info }));
+      setTrackStatus(`Chargement des titres… ${out.length}`);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
 }
 async function loadStyleTracks(src) {
   const out = [], seen = new Set();
   const year = src.era ? ` year:${src.era}` : '';
   const queries = src.genres.length ? src.genres.slice(0, 8).map(g => `genre:"${g}"${year}`) : [year.trim()];
-  const pages = Math.min(10, Math.max(2, Math.ceil(10 / queries.length)));
-  await Promise.all(queries.map(q => searchTracks(q, pages, null, out, seen)));
+  const want = Math.ceil(100 / queries.length);
+  await Promise.all(queries.map(q => searchTracks(q, want, null, out, seen)));
   return out;
 }
 function setTrackStatus(t) { $('#track-status').textContent = t; }
@@ -813,12 +861,19 @@ function renderArtistResults() {
   const n = S.pickedArtists.length, go = $('#btn-artists-go');
   go.hidden = !n;
   go.textContent = n > 1 ? `Continuer avec ${n} artistes` : 'Continuer';
+  $('#artist-depth-box').hidden = !n;
+  $('#artist-depth').replaceChildren(...[['top', 'Les plus connus'], ['all', 'Toute la discographie']].map(([val, label]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.setAttribute('aria-pressed', String(S.artistDepth === val));
+    b.addEventListener('click', () => { S.artistDepth = val; renderArtistResults(); });
+    return b;
+  }));
 }
 function artistsGo() {
   const list = S.pickedArtists.slice();
   if (!list.length) return;
   pickSource({
-    kind: 'artists', key: 'ar:' + list.map(a => a.id).sort().join(','), artists: list,
+    kind: 'artists', key: `ar:${S.artistDepth}:` + list.map(a => a.id).sort().join(','), artists: list, depth: S.artistDepth,
     name: list.map(a => a.name).join(', '), fields: list.length > 1 ? BOTH : TITLE_ONLY
   });
 }
